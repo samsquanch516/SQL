@@ -1,4 +1,4 @@
-CREATE DEFINER=`taylor`@`192.168.%` FUNCTION `wordcount`(str TEXT) RETURNS int(11)
+CREATE DEFINER=`userName`@`192.168.%` FUNCTION `wordcount`(str TEXT) RETURNS int(11)
     NO SQL
     DETERMINISTIC
     SQL SECURITY INVOKER
