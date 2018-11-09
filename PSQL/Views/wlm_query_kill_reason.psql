@@ -1,0 +1,10 @@
+drop view if exists admin.v_wlm_query_kill_reason;
+
+create view admin.v_wlm_query_kill_reason
+  as
+select u.usename, database, querytxt,
+        starttime, endtime,
+       aborted, rule, action, recordtime
+from pg_catalog.stl_query q join pg_catalog.stl_wlm_rule_action ra on q.query = ra.query
+        join pg_catalog.pg_user u on q.userid = u.usesysid
+;
