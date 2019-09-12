@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>encrypted</key>
+	<false/>
+	<key>format</key>
+	<string>query favorites</string>
+	<key>queryFavorites</key>
+	<array>
+		<dict>
+			<key>name</key>
+			<string>PROCESSLIST</string>
+			<key>query</key>
+			<string>select * from information_schema.processlist where info is not null;</string>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>fix dupe prices</string>
+			<key>query</key>
+			<string>select updates
+from (
+select count(1), item_pk, sku_id, type_id, 1 as shard , concat("update inventory_price_s3.item_price set status_id = 2, modified_by = 1756026 where id = '", substring_index(group_concat(id order by created_date),',',1),"';") as updates
+from inventory_price_s3.item_price 
+where `status_id` = 1 
+group by sku_id, type_id 
+having count(1) &gt; 1 
+)a;</string>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>fix deleted reason codes</string>
+			<key>query</key>
+			<string>select concat("update inventory_listing_s",shard,".item_listing set deleted_reason_code = ", old_deleted_reason_code,", modified_by = 1756026 where id = '", a.listing_id, "';")
+from (
+select 1 'shard', item_listing.id 'listing_id', item_listing.item_pk
+from inventory_listing_s1.item_listing
+where status=6 and deleted_reason_code is null
+
+union
+
+select 2 'shard', item_listing.id 'listing_id', item_listing.item_pk
+from inventory_listing_s2.item_listing
+where status=6 and deleted_reason_code is null
+
+union
+
+select 3 'shard', item_listing.id 'listing_id', item_listing.item_pk
+from inventory_listing_s3.item_listing
+where status=6 and deleted_reason_code is null
+) a join inventory.listing_audit la on a.listing_id = la.listing_id
+where la.new_status = 6
+and new_deleted_reason_code is null</string>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>User count by host</string>
+			<key>query</key>
+			<string>select left(host, length(host)-6) as hostIP, user, count(1) from information_schema.processlist  group by left(host, length(host)-6),2 order by 3 desc;</string>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>update item vertical</string>
+			<key>query</key>
+			<string>
+update inventory.item
+set item_vertical = 'jewelry',
+	modified_by = 1756026
+where item_pk = 'v_5824261'
+;</string>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>fix return policy</string>
+			<key>query</key>
+			<string>select 
+	concat("update inventory.item set return_policy_id = ", seller_default_return_policy_id, ", modified_by = 1756026 where item_pk = '", i.item_pk,"';")
+from inventory.item i
+	join identity.seller_view sv on i.seller_pk=sv.seller_pk
+	left join stdib1.return_policy p on i.return_policy_id = p.id
+where 1
+	and i.status in (3,4)
+	and i.return_policy_id is not null
+	and p.id is null
+limit 1000
+;</string>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>fix extra local pickup</string>
+			<key>query</key>
+			<string>select CONCAT('DELETE FROM logistics.shipment_quote WHERE id=',shipment_quote.id, '; DELETE FROM logistics.shipping_cost where concatenated_anchor=\'SHIPPING_QUOTE-', shipment_quote.id, '\';') 'queries'
+from identity.address_property_value_xref 
+	join identity.address_anchor_xref on address_anchor_xref.address_id = address_property_value_xref.address_id 
+	join logistics.shipment_quote on address_anchor_xref.concat_anchor=shipment_quote.concatenated_anchor
+where 1
+	and address_property_value_xref.address_property_value_id=1 
+	and address_anchor_xref.type = 'ITEM_LOCATION'
+	and shipment_quote.service_method_id=1
+	and address_anchor_xref.status = 'ACTIVE'
+	and address_property_value_xref.modified_date &lt; now()-interval 1 hour
+LIMIT 100;</string>
+		</dict>
+	</array>
+	<key>version</key>
+	<integer>1</integer>
+</dict>
+</plist>
